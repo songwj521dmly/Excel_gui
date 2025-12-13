@@ -1,0 +1,76 @@
+# Build directories
+build/
+bin/
+lib/
+out/
+dist/
+release/
+
+# IDE/Editor files
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.x64.user
+*.vcxproj.user
+.trae/
+.claude/
+
+# Qt specific
+*.qch
+*.qch
+*.qrc.depends
+.qmake.stash
+qmake.log
+*.moc
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+Makefile*
+
+# CMake
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# Test data and logs
+*.log
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+build_log.txt
+
+# Temp files
+*.tmp
+*.bak
+*.swp
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Legacy/Backup
+legacy/
+
+# Binary and Distribution
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+*.obj
+*.rar
+*.zip

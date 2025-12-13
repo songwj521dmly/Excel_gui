@@ -1,0 +1,55 @@
+{
+  "configurations": [
+    {
+      "name": "x64-Release-Qt6",
+      "generator": "Ninja",
+      "configurationType": "Release",
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "",
+      "ctestCommandArgs": "",
+      "inheritEnvironments": [ "msvc_x64_x64" ],
+      "variables": [
+        {
+          "name": "CMAKE_PREFIX_PATH",
+          "value": "D:/Qt/6.10.1/msvc2022_64",
+          "type": "PATH"
+        },
+        {
+          "name": "CMAKE_TOOLCHAIN_FILE",
+          "value": "D:/Qt/6.10.1/msvc2022_64/lib/cmake/Qt6/qt.toolchain.cmake",
+          "type": "FILEPATH"
+        }
+      ]
+    },
+    {
+      "name": "x64-Release-Qt5",
+      "generator": "Ninja",
+      "configurationType": "Release",
+      "inheritEnvironments": [ "msvc_x64_x64" ],
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "",
+      "ctestCommandArgs": "",
+      "variables": [
+        {
+          "name": "OPTION_FORCE_QT5",
+          "value": "ON",
+          "type": "BOOL"
+        },
+        {
+          "name": "CMAKE_PREFIX_PATH",
+          "value": "D:/Qt/Qt5.12.12/5.12.12/msvc2017_64",
+          "type": "PATH"
+        },
+        {
+          "name": "CMAKE_TOOLCHAIN_FILE",
+          "value": "D:/Qt/Qt5.12.12/5.12.12/msvc2017_64/lib/cmake/Qt5/Qt5Config.cmake",
+          "type": "FILEPATH"
+        }
+      ]
+    }
+  ]
+}
