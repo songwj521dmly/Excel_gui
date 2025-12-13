@@ -36,7 +36,7 @@
    ```
    如果 Qt 未在标准路径，请指定 `CMAKE_PREFIX_PATH`:
    ```bash
-   cmake .. -DCMAKE_PREFIX_PATH="D:/Qt/6.9.1/msvc2022_64"
+   cmake .. -DCMAKE_PREFIX_PATH="D:/Qt/Qt5.12.12/5.12.12/msvc2017_64"
    ```
 
 3. 编译:
