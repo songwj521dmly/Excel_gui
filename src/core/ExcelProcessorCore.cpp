@@ -23,10 +23,22 @@
 
 // ActiveQt Excel Reader for .xlsx support
 class ActiveQtExcelReader : public ExcelReader {
+private:
+    std::function<void(const std::string&)> logger_;
+
 public:
+    void setLogger(std::function<void(const std::string&)> logger) override {
+        logger_ = logger;
+    }
+
     bool readExcelFile(const std::string& filename, std::vector<DataRow>& data, const std::string& sheetName = "", int maxRows = 0, int offset = 0, bool includeHeader = false) override {
+        qDebug() << "DEBUG: Reading Excel File:" << QString::fromStdString(filename) 
+                 << "Offset:" << offset 
+                 << "IncludeHeader:" << includeHeader;
+
         QAxObject excel("Excel.Application");
         if (excel.isNull()) {
+            qDebug() << "ERROR: Failed to create Excel.Application";
             return false;
         }
         excel.setProperty("Visible", false);
@@ -44,6 +56,7 @@ public:
 
         QAxObject* workbook = workbooks->querySubObject("Open(const QString&)", absPath);
         if (!workbook) {
+            qDebug() << "ERROR: Failed to open workbook:" << absPath;
             excel.dynamicCall("Quit()");
             return false;
         }
@@ -63,9 +76,20 @@ public:
         }
 
         if (!sheet) {
+            qDebug() << "ERROR: Sheet not found:" << QString::fromStdString(sheetName);
             workbook->dynamicCall("Close()");
             excel.dynamicCall("Quit()");
             return false;
+        }
+
+        // Debug: Check A1 directly to verify file content vs read content
+        QAxObject* a1 = sheet->querySubObject("Range(const QString&)", "A1");
+        if (a1) {
+             QString a1Val = a1->dynamicCall("Value").toString();
+             qDebug() << "DEBUG: Direct A1 Cell Check:" << a1Val;
+             if (logger_) {
+                 logger_("DEBUG: Direct A1 Cell Value: [" + a1Val.toStdString() + "]");
+             }
         }
 
         QAxObject* usedRange = sheet->querySubObject("UsedRange");
@@ -85,6 +109,9 @@ public:
         int usedColStart = usedRange->property("Column").toInt();
         int usedColsCount = usedRange->querySubObject("Columns")->property("Count").toInt();
         int lastCol = usedColStart + usedColsCount - 1;
+
+        qDebug() << "DEBUG: UsedRange: Row" << usedRowStart << "Count" << usedRowsCount << "(Last:" << lastRow << ")"
+                 << "Col" << usedColStart << "Count" << usedColsCount;
 
         // Determine absolute start row (1-based)
         int absStartRow = 1 + offset;
@@ -132,18 +159,65 @@ public:
         // If includeHeader is true, we keep it. Otherwise, we skip it.
         bool skipHeader = (offset == 0 && !includeHeader); 
         
+        if (skipHeader) {
+             qDebug() << "DEBUG: Will skip first row as header (includeHeader=false)";
+        }
+
         for (const auto& rowVar : rawRows) {
+            rowIdx++; // Increment absolute row index first
+
             QList<QVariant> colVars = rowVar.toList();
-            if (colVars.isEmpty()) continue;
+            
+            // Check if row is completely empty (all cells are null/empty string)
+            bool isAllEmpty = true;
+            if (!colVars.isEmpty()) {
+                for(const auto& cell : colVars) {
+                    if(!cell.toString().isEmpty()) {
+                        isAllEmpty = false;
+                        break;
+                    }
+                }
+            }
+            
+            // Special handling for Header Row (rowIdx == 1)
+            // If includeHeader is true, we MUST include it even if it's empty, 
+            // to ensure data[0] corresponds to the header row.
+            bool isHeaderRow = (rowIdx == 1);
+
+            if (colVars.isEmpty()) {
+                 if (isHeaderRow && includeHeader) {
+                     // Force include empty header
+                     qDebug() << "DEBUG: Found empty row at absolute index 1, but keeping it as Header.";
+                 } else {
+                     // Skip empty row
+                     continue;
+                 }
+            }
             
             if (skipHeader) {
+                // If we are here, it means this is the first row (rowIdx==1) and we want to skip it.
+                // But wait, rowIdx is already incremented.
+                // If offset=0, rowIdx starts at 0. First loop rowIdx=1.
+                // skipHeader is true.
+                
                 skipHeader = false;
-                rowIdx++; // Increment index for header
+                
+                // Log what we skipped
+                QString skippedContent;
+                for(const auto& cell : colVars) skippedContent += cell.toString() + "|";
+                qDebug() << "DEBUG: Skipped Header Row:" << skippedContent;
+                
+                continue;
+            }
+
+            if (isAllEmpty && !(isHeaderRow && includeHeader)) {
+                // Skip empty data rows (but not empty header if requested)
+                // qDebug() << "DEBUG: Found empty row at absolute index" << rowIdx;
                 continue;
             }
 
             DataRow row;
-            row.rowNumber = ++rowIdx;
+            row.rowNumber = rowIdx;
             row.sheetName = sheet->property("Name").toString().toStdString();
             
             for (const auto& cellVar : colVars) {
@@ -1071,6 +1145,10 @@ bool ExcelProcessorCore::loadConfiguration(const std::string& configFile) {
                         }
                     }
                     
+                    if (parts.size() >= 11) {
+                        task.useHeader = (parts[10] == "TRUE");
+                    }
+                    
                     task.enabled = true; // Default to enabled
                     tasks_.push_back(task);
                 }
@@ -1134,7 +1212,7 @@ bool ExcelProcessorCore::saveConfiguration(const std::string& configFile) const 
     }
 
     file << "TASKS_SECTION\n";
-    file << "ID,TaskName,OutputMode,OutputWorkbookName,IncludeRuleIds,ExcludeRuleIds,OverwriteSheet,InputFilenamePattern,InputSheetName,RuleLogic\n";
+    file << "ID,TaskName,OutputMode,OutputWorkbookName,IncludeRuleIds,ExcludeRuleIds,OverwriteSheet,InputFilenamePattern,InputSheetName,RuleLogic,UseHeader\n";
     
     for (const auto& task : tasks_) {
         file << task.id << ","
@@ -1176,7 +1254,10 @@ bool ExcelProcessorCore::saveConfiguration(const std::string& configFile) const 
         file << "\"" << task.inputSheetName << "\",";
 
         // Rule Logic
-        file << static_cast<int>(task.ruleLogic) << "\n";
+        file << static_cast<int>(task.ruleLogic) << ",";
+        
+        // Use Header
+        file << (task.useHeader ? "TRUE" : "FALSE") << "\n";
     }
 
     return true;
@@ -1270,6 +1351,8 @@ ProcessingResult ExcelProcessorCore::processExcelFile(const std::string& inputFi
         reader_ = std::make_unique<CSVExcelReader>();
     }
 
+    if (logger_) reader_->setLogger(logger_);
+
     // Read input
     if (!reader_->readExcelFile(inputFile, currentData_, sheetName)) {
         addError("Unable to read input file: " + inputFile);
@@ -1305,6 +1388,9 @@ ProcessingResult ExcelProcessorCore::processExcelFile(const std::string& inputFi
     if (!writer_->writeExcelFile(outputFile, currentData_)) {
         addError("Unable to write output file: " + outputFile);
     }
+    
+    // Ensure writer resources are released immediately
+    writer_->closeAll();
 
     auto processingEndTime = std::chrono::high_resolution_clock::now();
     result.processingTime = std::chrono::duration<double, std::milli>(
@@ -1315,7 +1401,7 @@ ProcessingResult ExcelProcessorCore::processExcelFile(const std::string& inputFi
     return result;
 }
 
-bool ExcelProcessorCore::loadFile(const std::string& filename, const std::string& sheetName, int maxRows) {
+bool ExcelProcessorCore::loadFile(const std::string& filename, const std::string& sheetName, int maxRows, bool includeHeader) {
     std::lock_guard<std::mutex> lock(dataMutex_);
 
     std::string ext = filename.substr(filename.find_last_of(".") + 1);
@@ -1327,9 +1413,35 @@ bool ExcelProcessorCore::loadFile(const std::string& filename, const std::string
         reader_ = std::make_unique<CSVExcelReader>();
     }
 
-    if (!reader_->readExcelFile(filename, currentData_, sheetName, maxRows)) {
+    if (logger_) reader_->setLogger(logger_);
+
+    if (!reader_->readExcelFile(filename, currentData_, sheetName, maxRows, 0, includeHeader)) {
         addError("Unable to read file: " + filename);
         return false;
+    }
+
+    if (includeHeader && !currentData_.empty() && logger_) {
+         std::string headerStr;
+         bool isEmpty = true;
+         if (!currentData_[0].data.empty()) {
+             for (const auto& cell : currentData_[0].data) {
+                 std::visit([&headerStr, &isEmpty](const auto& val) {
+                     using ValType = std::decay_t<decltype(val)>;
+                     if constexpr (std::is_same_v<ValType, std::string>) {
+                         headerStr += val + " | ";
+                         if (!val.empty()) isEmpty = false;
+                     } else if constexpr (std::is_arithmetic_v<ValType>) {
+                         headerStr += std::to_string(val) + " | ";
+                         isEmpty = false;
+                     } else if constexpr (std::is_same_v<ValType, bool>) {
+                         headerStr += (val ? "TRUE" : "FALSE") + std::string(" | ");
+                         isEmpty = false;
+                     }
+                 }, cell);
+             }
+         }
+         logger_("Loaded Header Row (Row 1): " + headerStr);
+         if (isEmpty) logger_("WARNING: Header Row appears to be empty.");
     }
     return true;
 }
@@ -1345,6 +1457,8 @@ std::vector<std::string> ExcelProcessorCore::getSheetNames(const std::string& fi
         tempReader = std::make_unique<CSVExcelReader>();
     }
     
+    if (logger_) tempReader->setLogger(logger_);
+
     std::vector<std::string> names;
     tempReader->getSheetNames(filename, names);
     return names;
@@ -1352,14 +1466,17 @@ std::vector<std::string> ExcelProcessorCore::getSheetNames(const std::string& fi
 
 void ExcelProcessorCore::setLogger(std::function<void(const std::string&)> logger) {
     logger_ = logger;
+    if (reader_) {
+        reader_->setLogger(logger);
+    }
 }
 
 void ExcelProcessorCore::setProgressCallback(std::function<void(int, const std::string&)> callback) {
     progressCallback_ = callback;
 }
 
-bool ExcelProcessorCore::previewResults(const std::string& inputFile, int maxPreviewRows) {
-    if (logger_) logger_("Previewing file: " + inputFile + ", Max Rows: " + std::to_string(maxPreviewRows));
+bool ExcelProcessorCore::previewResults(const std::string& inputFile, const std::string& sheetName, int maxPreviewRows) {
+    if (logger_) logger_("Previewing file: " + inputFile + ", Sheet: " + (sheetName.empty() ? "Default" : sheetName) + ", Max Rows: " + std::to_string(maxPreviewRows));
     
     {
         std::lock_guard<std::mutex> lock(dataMutex_);
@@ -1367,8 +1484,8 @@ bool ExcelProcessorCore::previewResults(const std::string& inputFile, int maxPre
     }
 
     // Load data for preview
-    // Using loadFile with empty sheet name to load first sheet
-    bool success = loadFile(inputFile, "", maxPreviewRows);
+    // Force includeHeader=true to ensure we capture the first row (header) in memory
+    bool success = loadFile(inputFile, sheetName, maxPreviewRows, true);
     
     if (logger_) logger_("File load result: " + std::string(success ? "Success" : "Failed") + ", Rows loaded: " + std::to_string(currentData_.size()));
     return success;
@@ -1480,6 +1597,21 @@ std::vector<DataRow> ExcelProcessorCore::getTaskPreviewData(int taskId, int maxR
     };
 
     if (logger_) logger_("Generating preview for Task ID: " + std::to_string(taskId));
+    
+    // Log Header Info
+    if (!sourceData.empty()) {
+        QString headerContent;
+        if (!sourceData[0].data.empty()) {
+            // Just peek first few columns
+            int cols = std::min((size_t)5, sourceData[0].data.size());
+            for(int k=0; k<cols; ++k) {
+                if (std::holds_alternative<std::string>(sourceData[0].data[k])) {
+                    headerContent += QString::fromStdString(std::get<std::string>(sourceData[0].data[k])) + "|";
+                }
+            }
+        }
+        if (logger_) logger_("Source Data Row 0 (Potential Header): " + headerContent.toStdString());
+    }
 
     // Pre-fetch rules for performance
     // ... or just lookup in loop since it's preview (small size)
@@ -1489,6 +1621,7 @@ std::vector<DataRow> ExcelProcessorCore::getTaskPreviewData(int taskId, int maxR
         // Special handling for header row
         if (i == 0 && task.useHeader) {
             resultData.push_back(sourceData[i]);
+            if (logger_) logger_("Row 0 preserved as Header.");
             continue;
         }
 
@@ -1887,6 +2020,8 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
         reader_ = std::make_unique<CSVExcelReader>();
     }
 
+    if (logger_) reader_->setLogger(logger_);
+
     auto tasks = tasksToProcess;
     auto rules = getRules(); // Thread-safe copy
 
@@ -2085,6 +2220,30 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
                 break; // Stop or error
             }
             
+            if (isFirstChunk && includeHeader && !currentData_.empty() && logger_) {
+                 std::string headerStr;
+                 bool isEmpty = true;
+                 if (!currentData_[0].data.empty()) {
+                     for (const auto& cell : currentData_[0].data) {
+                         std::visit([&headerStr, &isEmpty](const auto& val) {
+                             using ValType = std::decay_t<decltype(val)>;
+                             if constexpr (std::is_same_v<ValType, std::string>) {
+                                 headerStr += val + " | ";
+                                 if (!val.empty()) isEmpty = false;
+                             } else if constexpr (std::is_arithmetic_v<ValType>) {
+                                 headerStr += std::to_string(val) + " | ";
+                                 isEmpty = false;
+                             } else if constexpr (std::is_same_v<ValType, bool>) {
+                                 headerStr += (val ? "TRUE" : "FALSE") + std::string(" | ");
+                                 isEmpty = false;
+                             }
+                         }, cell);
+                     }
+                 }
+                 logger_("Processing Header Row (Row 1): " + headerStr);
+                 if (isEmpty) logger_("WARNING: Processing Header Row appears to be empty.");
+            }
+            
             if (currentData_.empty()) break; // EOF
 
             // Optimize/Validate Input Chunk
@@ -2100,8 +2259,12 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
 
                 if (logger_ && isTaskFirstChunk) {
                     std::string displayTaskName = task.taskName.empty() ? "[Unnamed Task]" : task.taskName;
-                    std::string msg = "\xE6\xAD\xA3\xE5\x9C\xA8\xE5\xA4\x84\xE7\x90\x86\xE4\xBB\xBB\xE5\x8A\xA1: " + displayTaskName;
+                    std::string msg = "正在处理任务: " + displayTaskName;
                     logger_(msg);
+                    
+                    if (task.overwriteSheet && !task.useHeader) {
+                        logger_("警告: 任务 '" + displayTaskName + "' 配置为覆盖工作表且不保留表头，这可能导致原表头丢失！"); // Warning: Task overwrites sheet without header...
+                    }
                 }
 
                 std::vector<DataRow> taskData;

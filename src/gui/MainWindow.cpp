@@ -385,7 +385,7 @@ void ExcelProcessorGUI::updateProgress() {
 */
 
 void ExcelProcessorGUI::setupUI() {
-    setWindowTitle(QString::fromUtf8("Excel\xE6\x95\xB0\xE6\x8D\xAE\xE5\xA4\x84\xE7\x90\x86\xE5\xB7\xA5\xE5\x85\xB7-\xE6\xA8\xAA\xE6\xA2\x81\xE4\xB8\x8B\xE6\x96\x99\xE4\xB8\x93\xE4\xB8\x9A\xE7\xBB\x84")); // Excel Data Processing Tool - Crossbeam Cutting Group
+    setWindowTitle(QString::fromUtf8("\x45\x78\x63\x65\x6C\xE6\x95\xB0\xE6\x8D\xAE\xE5\xA4\x84\xE7\x90\x86\xE5\xB7\xA5\xE5\x85\xB7\x2D\xE6\xA8\xAA\xE6\xA2\x81\xE4\xB8\x8B\xE6\x96\x99\xE4\xB8\x93\xE4\xB8\x9A\xE7\xBB\x84")); // Excel Data Processing Tool - Crossbeam Material Group
     setMinimumSize(1200, 800);
 
     auto centralWidget = new QWidget(this);
@@ -461,7 +461,7 @@ QWidget* ExcelProcessorGUI::createAboutTab() {
     auto layout = new QVBoxLayout(tab);
 
     // Title
-    auto titleLabel = new QLabel(QString::fromUtf8("Excel\xE6\x95\xB0\xE6\x8D\xAE\xE5\xA4\x84\xE7\x90\x86\xE5\xB7\xA5\xE5\x85\xB7-\xE6\xA8\xAA\xE6\xA2\x81\xE4\xB8\x8B\xE6\x96\x99\xE4\xB8\x93\xE4\xB8\x9A\xE7\xBB\x84"));
+    auto titleLabel = new QLabel(QString::fromUtf8("\x45\x78\x63\x65\x6C\xE6\x95\xB0\xE6\x8D\xAE\xE5\xA4\x84\xE7\x90\x86\xE5\xB7\xA5\xE5\x85\xB7\x2D\xE6\xA8\xAA\xE6\xA2\x81\xE4\xB8\x8B\xE6\x96\x99\xE4\xB8\x93\xE4\xB8\x9A\xE7\xBB\x84"));
     titleLabel->setStyleSheet("font-size: 24px; font-weight: bold; color: #333333; margin-top: 20px;");
     titleLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(titleLabel);
@@ -473,7 +473,7 @@ QWidget* ExcelProcessorGUI::createAboutTab() {
     layout->addWidget(versionLabel);
 
     // Description
-    auto descLabel = new QLabel(QString::fromUtf8("\xE6\x8F\x90\xE4\xBE\x9B\xE9\xAB\x98\xE6\x95\x88\xE7\x9A\x84" "Excel" "\xE6\x95\xB0\xE6\x8D\xAE\xE5\xA4\x84\xE7\x90\x86\xE3\x80\x81\xE8\xA7\x84\xE5\x88\x99\xE7\xAD\x9B\xE9\x80\x89\xE4\xB8\x8E\xE5\xA4\x9A\xE4\xBB\xBB\xE5\x8A\xA1\xE5\x88\x86\xE5\x8F\x91\xE5\x8A\x9F\xE8\x83\xBD\xE3\x80\x82"));
+    auto descLabel = new QLabel(QString::fromUtf8("\x45\x78\x63\x65\x6C\xE6\x95\xB0\xE6\x8D\xAE\xE5\xBF\xAB\xE9\x80\x9F\xE5\xA4\x84\xE7\x90\x86\xEF\xBC\x8C\xE8\x87\xAA\xE5\xAE\x9A\xE4\xB9\x89\xE5\xA4\x8D\xE6\x9D\x82\xE8\xA7\x84\xE5\x88\x99\xE8\xBE\x93\xE5\x87\xBA\xE6\x95\xB0\xE6\x8D\xAE\xE3\x80\x82"));
     descLabel->setStyleSheet("font-size: 14px; color: #555555; margin-top: 20px;");
     descLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(descLabel);
@@ -957,7 +957,7 @@ void ExcelProcessorGUI::previewData() {
     statusBar_->showMessage(QString::fromUtf8("\xE6\xAD\xA3\xE5\x9C\xA8\xE5\x8A\xA0\xE8\xBD\xBD\xE9\xA2\x84\xE8\xA7\x88\xE6\x95\xB0\xE6\x8D\xAE...")); // Loading preview data...
     QApplication::setOverrideCursor(Qt::WaitCursor);
     
-    if (processor_->previewResults(actualFile.toStdString(), 100)) {
+    if (processor_->previewResults(actualFile.toStdString(), inputSheet.toStdString(), 5000)) {
          auto data = processor_->getPreviewData();
          updatePreviewTable(data);
          
@@ -1023,8 +1023,8 @@ void ExcelProcessorGUI::previewTask(int taskId) {
         }
     }
 
-    // Load Data if needed (Preview Load)
-    if (processor_->previewResults(actualFile.toStdString(), 100)) {
+    // Load Data if needed (Preview Load) 5000 is the max preview rows
+    if (processor_->previewResults(actualFile.toStdString(), task.inputSheetName, 5000)) {
          auto data = processor_->getTaskPreviewData(taskId);
          
          // Handle Headers

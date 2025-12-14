@@ -215,15 +215,15 @@ public:
     void setProgressCallback(std::function<void(int, const std::string&)> callback);
 
     // Data loading
-    bool loadFile(const std::string& filename, const std::string& sheetName = "", int maxRows = 0);
+    bool loadFile(const std::string& filename, const std::string& sheetName = "", int maxRows = 0, bool includeHeader = false);
     std::vector<std::string> getSheetNames(const std::string& filename);
 
     // Preview functionality
-    bool previewResults(const std::string& inputFile, int maxPreviewRows = 100);
-    std::vector<DataRow> getPreviewData(int maxRows = 100) const;
-    std::vector<DataRow> getProcessedPreviewData(int maxRows = 100);
-    std::vector<DataRow> getProcessedPreviewData(const std::vector<int>& ruleIds, int maxRows = 100);
-    std::vector<DataRow> getTaskPreviewData(int taskId, int maxRows = 100);
+    bool previewResults(const std::string& inputFile, const std::string& sheetName = "", int maxPreviewRows = 5000);
+    std::vector<DataRow> getPreviewData(int maxRows = 5000) const;
+    std::vector<DataRow> getProcessedPreviewData(int maxRows = 5000);
+    std::vector<DataRow> getProcessedPreviewData(const std::vector<int>& ruleIds, int maxRows = 5000);
+    std::vector<DataRow> getTaskPreviewData(int taskId, int maxRows = 5000);
 
     // Performance and statistics
     PerformanceStats getPerformanceStats() const;
@@ -294,6 +294,7 @@ class ExcelReader {
 public:
     virtual ~ExcelReader() = default;
     virtual bool readExcelFile(const std::string& filename, std::vector<DataRow>& data, const std::string& sheetName = "", int maxRows = 0, int offset = 0, bool includeHeader = false) = 0;
+    virtual void setLogger(std::function<void(const std::string&)> logger) {}
     virtual bool getSheetNames(const std::string& filename, std::vector<std::string>& sheetNames) const = 0;
     virtual int getRowCount(const std::string& sheetName) const = 0;
     virtual int getColumnCount(const std::string& sheetName) const = 0;
