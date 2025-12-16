@@ -39,6 +39,7 @@ public:
         QAxObject excel("Excel.Application");
         if (excel.isNull()) {
             qDebug() << "ERROR: Failed to create Excel.Application";
+            if (logger_) logger_("ERROR: Failed to create Excel.Application (ActiveQt)");
             return false;
         }
         excel.setProperty("Visible", false);
@@ -57,6 +58,7 @@ public:
         QAxObject* workbook = workbooks->querySubObject("Open(const QString&)", absPath);
         if (!workbook) {
             qDebug() << "ERROR: Failed to open workbook:" << absPath;
+            if (logger_) logger_("ERROR: Failed to open workbook: " + absPath.toStdString());
             excel.dynamicCall("Quit()");
             return false;
         }
@@ -77,6 +79,7 @@ public:
 
         if (!sheet) {
             qDebug() << "ERROR: Sheet not found:" << QString::fromStdString(sheetName);
+            if (logger_) logger_("ERROR: Sheet not found: " + sheetName);
             workbook->dynamicCall("Close()");
             excel.dynamicCall("Quit()");
             return false;
@@ -114,8 +117,31 @@ public:
                  << "Col" << usedColStart << "Count" << usedColsCount;
 
         // Determine absolute start row (1-based)
-        int absStartRow = 1 + offset;
+        int absStartRow;
+        if (offset == 0) {
+            absStartRow = 1;
+        } else {
+            // If offset > 0, we have already processed some data rows.
+            // If includeHeader is true, it means there IS a header row (Row 1) that is NOT data.
+            // So absolute row = 1 (Header) + offset (Data Rows) + 1 (Next Data Row) = offset + 2.
+            // If includeHeader is false, it means Row 1 is Data.
+            // So absolute row = offset (Data Rows) + 1 (Next Data Row) = offset + 1.
+            
+            if (includeHeader) {
+                absStartRow = offset + 2;
+            } else {
+                absStartRow = offset + 1;
+            }
+        }
         
+        if (logger_) {
+             std::string dbg = "[DEBUG] ReadExcel: Offset=" + std::to_string(offset) 
+                             + " | IncludeHeader=" + (includeHeader?"YES":"NO")
+                             + " | StartRow=" + std::to_string(absStartRow)
+                             + " | LastRow=" + std::to_string(lastRow);
+             logger_(dbg); 
+        }
+
         if (absStartRow > lastRow) {
             workbook->dynamicCall("Close()");
             excel.dynamicCall("Quit()");
@@ -152,12 +178,11 @@ public:
         // Here we just append to the vector provided.
         // data.clear(); // REMOVED: Let caller manage data vector
 
-        int rowIdx = offset; // Start row index
+        int rowIdx = absStartRow - 1; // Start row index (will be incremented to absStartRow in loop)
         
         // Skip header logic
-        // If offset == 0, we assume the first row of the file is header.
-        // If includeHeader is true, we keep it. Otherwise, we skip it.
-        bool skipHeader = (offset == 0 && !includeHeader); 
+        // We have already handled skipping via absStartRow calculation.
+        bool skipHeader = false; 
         
         if (skipHeader) {
              qDebug() << "DEBUG: Will skip first row as header (includeHeader=false)";
@@ -2203,20 +2228,25 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
             }
 
             // Determine if we need to read header
+            // Calculate for every chunk to ensure correct offset calculation in reader
             bool includeHeader = false;
-            if (isFirstChunk) {
-                for (const auto& task : tasks) {
-                     if (task.enabled && task.useHeader) {
-                         includeHeader = true;
-                         break;
-                     }
-                }
-            }
+            for (const auto& task : tasks) {
+                  if (task.enabled && task.useHeader) {
+                      includeHeader = true;
+                      break;
+                  }
+             }
 
-            if (!reader_->readExcelFile(inputFile, currentData_, currentSheet, chunkSize, offset, includeHeader)) {
+             if (logger_) {
+                 logger_("[DEBUG] Chunk: Offset=" + std::to_string(offset) + " | HeaderReq=" + (includeHeader ? "YES" : "NO"));
+             }
+
+             if (!reader_->readExcelFile(inputFile, currentData_, currentSheet, chunkSize, offset, includeHeader)) {
+                std::string err = "Unable to read input file: " + inputFile + " (Sheet: " + (currentSheet.empty() ? "Default" : currentSheet) + ")";
                 if (isFirstChunk) {
-                    addError("Unable to read input file: " + inputFile + " (Sheet: " + currentSheet + ")");
+                    addError(err);
                 }
+                if (logger_) logger_("ERROR: " + err);
                 break; // Stop or error
             }
             
@@ -2247,7 +2277,7 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
             if (currentData_.empty()) break; // EOF
 
             // Optimize/Validate Input Chunk
-            dataProcessor_->optimizeProcessing(currentData_);
+            // dataProcessor_->optimizeProcessing(currentData_); // DISABLED: This sorts data and breaks header position
 
             // Process this chunk for each applicable task
             for (const auto& task : tasks) {
@@ -2262,8 +2292,16 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
                     std::string msg = "正在处理任务: " + displayTaskName;
                     logger_(msg);
                     
-                    if (task.overwriteSheet && !task.useHeader) {
-                        logger_("警告: 任务 '" + displayTaskName + "' 配置为覆盖工作表且不保留表头，这可能导致原表头丢失！"); // Warning: Task overwrites sheet without header...
+                    std::string sheetDisp = currentSheet.empty() ? "默认" : currentSheet;
+                    if (task.useHeader) {
+                        logger_(std::string("\xE6\x8F\x90\xE7\xA4\xBA: \xE4\xBB\xBB\xE5\x8A\xA1 '") + displayTaskName + "' [\xE5\xB7\xB2\xE5\x8B\xBE\xE9\x80\x89]\xE4\xBD\xBF\xE7\x94\xA8\xE5\x8E\x9F\xE8\xA1\xA8\xE5\xA4\xB4\xE4\xBF\xA1\xE6\x81\xAF\xEF\xBC\x8C'" + sheetDisp + "' \xE5\xB7\xA5\xE4\xBD\x9C\xE8\xA1\xA8\xE7\x9A\x84\xE9\xA6\x96\xE8\xA1\x8C\xE6\x95\xB0\xE6\x8D\xAE\xE5\xB0\x86\xE4\xBD\x9C\xE4\xB8\xBA\xE8\xA1\xA8\xE5\xA4\xB4\xE4\xBF\x9D\xE7\x95\x99\xE4\xB8\x94\xE4\xB8\x8D\xE5\x8F\x82\xE4\xB8\x8E\xE6\x95\xB0\xE6\x8D\xAE\xE7\xAD\x9B\xE9\x80\x89\xE3\x80\x82");
+                    } else {
+                        std::string logMsg = std::string("\xE4\xBB\xBB\xE5\x8A\xA1 '") + displayTaskName + "' [\xE6\x9C\xAA\xE9\x80\x89\xE6\x8B\xA9]\xE4\xBD\xBF\xE7\x94\xA8\xE5\x8E\x9F\xE8\xA1\xA8\xE5\xA4\xB4\xE4\xBF\xA1\xE6\x81\xAF\xEF\xBC\x8C'" + sheetDisp + "' \xE5\xB7\xA5\xE4\xBD\x9C\xE8\xA1\xA8\xE7\x9A\x84\xE9\xA6\x96\xE8\xA1\x8C\xE6\x95\xB0\xE6\x8D\xAE\xE5\xB0\x86\xE8\xA7\x86\xE4\xB8\xBA\xE6\x95\xB0\xE6\x8D\xAE\xE5\x8F\x82\xE4\xB8\x8E\xE7\xAD\x9B\xE9\x80\x89\xE3\x80\x82";
+                        if (task.overwriteSheet) {
+                            logger_(std::string("\xE8\xAD\xA6\xE5\x91\x8A: ") + logMsg + " (\xE8\xA6\x86\xE7\x9B\x96\xE6\xA8\xA1\xE5\xBC\x8F\xE5\x8F\xAF\xE8\x83\xBD\xE5\xAF\xBC\xE8\x87\xB4\xE8\xA1\xA8\xE5\xA4\xB4\xE4\xB8\xA2\xE5\xA4\xB1)");
+                        } else {
+                            logger_(std::string("\xE6\x8F\x90\xE7\xA4\xBA: ") + logMsg);
+                        }
                     }
                 }
 
@@ -2326,6 +2364,34 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
                     if (isHeaderRow) {
                          if (shouldWriteHeader) {
                              taskData.push_back(row);
+                             if (logger_ && task.useHeader) {
+                                  std::string hStr;
+                                  for(const auto& c : row.data) {
+                                      std::string valStr = std::visit([](auto&& arg) -> std::string {
+                                          using T = std::decay_t<decltype(arg)>;
+                                          if constexpr (std::is_same_v<T, std::string>) return arg;
+                                          else if constexpr (std::is_same_v<T, int>) return std::to_string(arg);
+                                          else if constexpr (std::is_same_v<T, double>) return std::to_string(arg);
+                                          else if constexpr (std::is_same_v<T, bool>) return arg ? "TRUE" : "FALSE";
+                                          else if constexpr (std::is_same_v<T, std::tm>) {
+                                              char buf[64];
+                                              std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &arg);
+                                              return buf;
+                                          }
+                                          return "";
+                                      }, c);
+                                      hStr += valStr + " | ";
+                                  }
+                                  // "Writing Header"
+                                  logger_(std::string("[DEBUG] \xE5\x86\x99\xE5\x85\xA5\xE8\xA1\xA8\xE5\xA4\xB4: ") + hStr);
+                                  // "Header Consistency Check: PASSED (Output Header == Input Header)"
+                                  logger_(std::string("[DEBUG] \xE8\xA1\xA8\xE5\xA4\xB4\xE4\xB8\x80\xE8\x87\xB4\xE6\x80\xA7\xE6\xA3\x80\xE6\xB5\x8B: \xE9\x80\x9A\xE8\xBF\x87 (\xE8\xBE\x93\xE5\x87\xBA\xE8\xA1\xA8\xE5\xA4\xB4 == \xE8\xBE\x93\xE5\x85\xA5\xE8\xA1\xA8\xE5\xA4\xB4)"));
+                              }
+                         } else {
+                             if (logger_ && task.useHeader) {
+                                 // "SKIPPING Header Write. Reason: Target sheet not empty or overwrite disabled."
+                                 logger_(std::string("[DEBUG] \xE8\xB7\xB3\xE8\xBF\x87\xE8\xA1\xA8\xE5\xA4\xB4\xE5\x86\x99\xE5\x85\xA5\xE3\x80\x82\xE5\x8E\x9F\xE5\x9B\xA0: \xE7\x9B\xAE\xE6\xA0\x87\xE5\xB7\xA5\xE4\xBD\x9C\xE8\xA1\xA8\xE9\x9D\x9E\xE7\xA9\xBA \xE6\x88\x96 \xE6\x9C\xAA\xE5\x90\xAF\xE7\x94\xA8\xE8\xA6\x86\xE7\x9B\x96\xE6\xA8\xA1\xE5\xBC\x8F\xE3\x80\x82"));
+                             }
                          }
                          rowIdx++;
                          continue;
