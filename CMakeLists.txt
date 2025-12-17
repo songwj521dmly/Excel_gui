@@ -71,8 +71,14 @@ add_library(ExcelProcessorCore
     src/core/ExcelProcessorCore.cpp
     src/core/RuleEngine.cpp
     src/core/RuleCombinationEngine.cpp
+    src/core/LicenseManager.cpp
+    src/core/LicenseManager.h
 )
 target_link_libraries(ExcelProcessorCore PRIVATE ${QT_LIB_PREFIX}::Core ${QT_LIB_PREFIX}::Concurrent ${QT_LIB_PREFIX}::AxContainer)
+
+if(WIN32)
+    target_link_libraries(ExcelProcessorCore PRIVATE advapi32)
+endif()
 
 # Console Application
 add_executable(excel_console
@@ -94,6 +100,13 @@ endif()
 
 target_include_directories(excel_gui BEFORE PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(excel_gui PRIVATE ExcelProcessorCore ${QT_LIB_PREFIX}::Core ${QT_LIB_PREFIX}::Gui ${QT_LIB_PREFIX}::Widgets)
+
+# License Key Generator
+add_executable(license_keygen
+    src/console/keygen.cpp
+)
+target_include_directories(license_keygen BEFORE PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(license_keygen PRIVATE ExcelProcessorCore ${QT_LIB_PREFIX}::Core)
 
 # Handle Window application on Windows (avoid console window for GUI)
 if(WIN32)
