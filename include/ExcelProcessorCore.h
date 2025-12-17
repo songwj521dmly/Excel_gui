@@ -47,6 +47,14 @@ enum class DataType {
     DATE
 };
 
+// Split Target Enumeration
+enum class SplitTarget {
+    NONE,
+    BEFORE,     // Number before symbol
+    AFTER,      // Number after symbol
+    BOTH        // Both numbers (AND logic usually, or depends on Operator)
+};
+
 // Rule condition structure
 struct RuleCondition {
     int column;                    // Column number (1-based)
@@ -54,6 +62,10 @@ struct RuleCondition {
     std::variant<std::string, int, double, bool> value;  // Condition value
     bool case_sensitive = false;    // Case sensitive
     DataType type = DataType::STRING; // Data type
+    
+    // Split Logic Configuration
+    std::string splitSymbol;        // Symbol to split by (e.g. "*", "@")
+    SplitTarget splitTarget = SplitTarget::NONE; 
 
     RuleCondition() : column(0), oper(Operator::EQUAL) {}
 };

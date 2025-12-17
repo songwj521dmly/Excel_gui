@@ -170,7 +170,70 @@ private:
         return evaluateCondition(condition, value);
     }
 
+    bool evaluateSplitCondition(const RuleCondition& condition, const std::string& value) const {
+        std::string symbol = condition.splitSymbol;
+        size_t pos = value.find(symbol);
+        
+        if (pos == std::string::npos) {
+            return false;
+        }
+
+        double numBefore = 0.0;
+        double numAfter = 0.0;
+        bool hasBefore = false;
+        bool hasAfter = false;
+
+        // Extract before
+        try {
+            std::string beforeStr = value.substr(0, pos);
+            // Remove non-numeric chars logic could be complex, but std::stod handles whitespace.
+            // If the string contains other garbage, stod might throw or stop parsing.
+            // We assume clean data "340" or " 340 ".
+            if (!beforeStr.empty()) {
+                numBefore = std::stod(beforeStr);
+                hasBefore = true;
+            }
+        } catch (...) {}
+
+        // Extract after
+        try {
+            std::string afterStr = value.substr(pos + symbol.length());
+            if (!afterStr.empty()) {
+                numAfter = std::stod(afterStr);
+                hasAfter = true;
+            }
+        } catch (...) {}
+
+        // We reuse evaluateNumberCondition logic
+        // We need to create a temporary condition for number comparison to reuse evaluateNumberCondition
+        // But evaluateNumberCondition takes a condition object. 
+        // We can just call it with the current condition object, it will use condition.value and condition.oper.
+        
+        auto check = [&](double val) -> bool {
+            return evaluateNumberCondition(condition, val);
+        };
+
+        switch (condition.splitTarget) {
+            case SplitTarget::BEFORE:
+                if (!hasBefore) return false;
+                return check(numBefore);
+            case SplitTarget::AFTER:
+                if (!hasAfter) return false;
+                return check(numAfter);
+            case SplitTarget::BOTH:
+                if (!hasBefore || !hasAfter) return false;
+                return check(numBefore) && check(numAfter);
+            default:
+                return false;
+        }
+    }
+
     bool evaluateStringCondition(const RuleCondition& condition, const std::string& value) const {
+        // Handle Split Logic First
+        if (condition.splitTarget != SplitTarget::NONE && !condition.splitSymbol.empty()) {
+            return evaluateSplitCondition(condition, value);
+        }
+
         auto strConditionValue = std::get_if<std::string>(&condition.value);
         if (!strConditionValue) return false;
 

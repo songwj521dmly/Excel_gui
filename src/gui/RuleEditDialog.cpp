@@ -93,11 +93,13 @@ void RuleEditDialog::setupUI() {
     auto condLayout = new QVBoxLayout(condGroup);
     
     conditionsTable_ = new QTableWidget();
-    conditionsTable_->setColumnCount(3);
+    conditionsTable_->setColumnCount(5);
     conditionsTable_->setHorizontalHeaderLabels({
         QString::fromUtf8("\xE5\x88\x97"),
         QString::fromUtf8("\xE6\x93\x8D\xE4\xBD\x9C\xE7\xAC\xA6"),
-        QString::fromUtf8("\xE5\x80\xBC")
+        QString::fromUtf8("\xE5\x80\xBC"),
+        QString::fromUtf8("\xE5\x88\x86\xE9\x9A\x94\xE7\xAC\xA6"),
+        QString::fromUtf8("\xE5\x88\x86\xE9\x9A\x94\xE9\x80\xBB\xE8\xBE\x91")
     });
     conditionsTable_->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     conditionsTable_->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -215,6 +217,19 @@ void RuleEditDialog::addCondition() {
     // Value Edit
     auto valEdit = new QLineEdit();
     conditionsTable_->setCellWidget(row, 2, valEdit);
+
+    // Split Symbol Edit
+    auto splitSymEdit = new QLineEdit();
+    splitSymEdit->setPlaceholderText("*");
+    conditionsTable_->setCellWidget(row, 3, splitSymEdit);
+
+    // Split Logic Combo
+    auto splitLogicCombo = new QComboBox();
+    splitLogicCombo->addItem(QString::fromUtf8("\xE6\x97\xA0 (None)"), static_cast<int>(SplitTarget::NONE));
+    splitLogicCombo->addItem(QString::fromUtf8("\xE7\xAC\xA6\xE5\x8F\xB7\xE5\x89\x8D (Before)"), static_cast<int>(SplitTarget::BEFORE));
+    splitLogicCombo->addItem(QString::fromUtf8("\xE7\xAC\xA6\xE5\x8F\xB7\xE5\x90\x8E (After)"), static_cast<int>(SplitTarget::AFTER));
+    splitLogicCombo->addItem(QString::fromUtf8("\xE7\xAC\xA6\xE5\x8F\xB7\xE5\x89\x8D\xE5\x90\x8E (Both)"), static_cast<int>(SplitTarget::BOTH));
+    conditionsTable_->setCellWidget(row, 4, splitLogicCombo);
 }
 
 void RuleEditDialog::updateConditionRow(int row, const RuleCondition& condition) {
@@ -248,6 +263,17 @@ void RuleEditDialog::updateConditionRow(int row, const RuleCondition& condition)
         } else if (auto doubleVal = std::get_if<double>(&condition.value)) {
             valEdit->setText(QString::number(*doubleVal));
         }
+    }
+
+    auto splitSymEdit = qobject_cast<QLineEdit*>(conditionsTable_->cellWidget(row, 3));
+    if (splitSymEdit) {
+        splitSymEdit->setText(QString::fromStdString(condition.splitSymbol));
+    }
+
+    auto splitLogicCombo = qobject_cast<QComboBox*>(conditionsTable_->cellWidget(row, 4));
+    if (splitLogicCombo) {
+        int idx = splitLogicCombo->findData(static_cast<int>(condition.splitTarget));
+        if (idx >= 0) splitLogicCombo->setCurrentIndex(idx);
     }
 }
 
@@ -317,6 +343,12 @@ RuleCondition RuleEditDialog::getConditionFromRow(int row) const {
     QString text = valEdit ? valEdit->text() : "";
     
     cond.value = text.toStdString();
+
+    auto splitSymEdit = qobject_cast<QLineEdit*>(conditionsTable_->cellWidget(row, 3));
+    cond.splitSymbol = splitSymEdit ? splitSymEdit->text().toStdString() : "";
+
+    auto splitLogicCombo = qobject_cast<QComboBox*>(conditionsTable_->cellWidget(row, 4));
+    cond.splitTarget = splitLogicCombo ? static_cast<SplitTarget>(splitLogicCombo->currentData().toInt()) : SplitTarget::NONE;
     
     return cond;
 }

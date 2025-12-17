@@ -109,3 +109,12 @@
 - **修复方法**:
   1. **禁用排序优化**: 在 `processTasksInternal` 中禁用了 `dataProcessor_->optimizeProcessing` 调用，确保数据（尤其是包含表头的首块数据）保持原始顺序。
   2. **完善错误日志**: 在 `ActiveQtExcelReader::readExcelFile` 的关键错误分支（创建 Excel 对象失败、打开工作簿失败、未找到工作表）中增加了 `logger_` 调用，确保错误信息能实时输出到用户界面日志中。
+
+### 5.17 新增：特殊符号逻辑判断规则
+- **需求**: 用户需要针对单元格内容中的特殊符号（如 `*`）进行逻辑判断，支持判断符号前、符号后或符号前后的数字是否满足特定条件（如“*前后数字均小于1800”）。
+- **实现**:
+  - **核心模型 (`ExcelProcessorCore.h`)**: 扩展 `RuleCondition` 结构体，新增 `splitSymbol` (分隔符) 和 `splitTarget` (分隔逻辑：前/后/双) 字段。
+  - **规则引擎 (`RuleEngine.cpp`)**: 新增 `evaluateSplitCondition` 方法，实现对分隔符前后数字的提取与条件复用。对于 `BOTH` 模式，采用逻辑与 (AND) 策略。
+  - **持久化 (`ExcelProcessorCore.cpp`)**: 更新 `parseRuleLine` 和 `saveConfiguration`，支持新字段的读写，保持 CSV 格式的向后兼容性。
+  - **用户界面 (`RuleEditDialog.cpp`)**: 扩展规则编辑表格，新增“分隔符”和“分隔逻辑”两列，允许用户自定义特殊符号及判断逻辑。
+

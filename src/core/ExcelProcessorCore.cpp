@@ -1224,6 +1224,10 @@ bool ExcelProcessorCore::saveConfiguration(const std::string& configFile) const 
                     condOss << val;
                 }
             }, rule.conditions[i].value);
+            
+            // Save Split Logic
+            condOss << ";;" << rule.conditions[i].splitSymbol << ";;" 
+                    << static_cast<int>(rule.conditions[i].splitTarget);
         }
         file << "\"" << condOss.str() << "\",";
 
@@ -1838,6 +1842,13 @@ Rule ExcelProcessorCore::parseRuleLine(const std::string& line) {
                 } else {
                     condition.value = std::string("");
                 }
+                
+                // Parse Split Logic
+                if (parts.size() >= 5) {
+                    condition.splitSymbol = parts[3];
+                    condition.splitTarget = static_cast<SplitTarget>(std::stoi(parts[4]));
+                }
+
                 rule.conditions.push_back(condition);
             }
         }
