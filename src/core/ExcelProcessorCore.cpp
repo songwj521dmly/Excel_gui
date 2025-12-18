@@ -2031,18 +2031,42 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
     // Single File Processing Mode
     std::lock_guard<std::mutex> lock(dataMutex_);
     std::vector<ProcessingResult> results;
+
+    // Check if input file exists
+    if (!QFileInfo::exists(QString::fromStdString(inputFile))) {
+        std::string msg = "\xE9\x94\x99\xE8\xAF\xAF: \xE8\xBE\x93\xE5\x85\xA5\xE6\x96\x87\xE4\xBB\xB6\xE4\xB8\x8D\xE5\xAD\x98\xE5\x9C\xA8: " + inputFile; // 错误: 输入文件不存在: 
+        if (logger_) logger_(msg);
+        addError(msg);
+        return results;
+    }
     
     // Determine sheets to process
+    // Get actual sheets for validation
+    std::vector<std::string> actualSheets = getSheetNames(inputFile);
+    
     std::vector<std::string> sheetsToProcess;
     if (sheetName.empty()) {
-        sheetsToProcess = getSheetNames(inputFile);
+        sheetsToProcess = actualSheets;
         if (sheetsToProcess.empty()) {
              // Fallback to default behavior (read first sheet) if getting names fails or empty
-             // But for tasks, maybe we should try to read first sheet explicitly?
-             // Let's rely on readExcelFile's default if list is empty
              sheetsToProcess.push_back(""); 
         }
     } else {
+        // Validate requested sheetName
+        bool found = false;
+        for (const auto& s : actualSheets) {
+            if (s == sheetName) {
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found && !actualSheets.empty()) {
+            std::string msg = "\xE9\x94\x99\xE8\xAF\xAF: \xE6\x8C\x87\xE5\xAE\x9A\xE7\x9A\x84\xE5\xB7\xA5\xE4\xBD\x9C\xE8\xA1\xA8\xE4\xB8\x8D\xE5\xAD\x98\xE5\x9C\xA8: " + sheetName; // 错误: 指定的工作表不存在: 
+            if (logger_) logger_(msg);
+            addError(msg);
+            return results;
+        }
         sheetsToProcess.push_back(sheetName);
     }
 
@@ -2108,18 +2132,25 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
             } else {
                 requiredSheets.push_back(task.inputSheetName);
                 
-                // Check if this required sheet exists (for warning)
-                bool sheetFound = false;
-                for (const auto& s : sheetsToProcess) {
-                    if (QString::fromStdString(s).compare(QString::fromStdString(task.inputSheetName), Qt::CaseInsensitive) == 0) {
-                        sheetFound = true;
-                        break;
+                // Check if this required sheet exists in the file
+                bool sheetExistsInFile = false;
+                // If actualSheets is empty, we skip validation (maybe CSV or read error handled later)
+                if (actualSheets.empty()) {
+                    sheetExistsInFile = true; 
+                } else {
+                    for (const auto& s : actualSheets) {
+                        if (QString::fromStdString(s).compare(QString::fromStdString(task.inputSheetName), Qt::CaseInsensitive) == 0) {
+                            sheetExistsInFile = true;
+                            break;
+                        }
                     }
                 }
-                if (!sheetFound) {
-                    // "Warning: Task '...' specified worksheet '...' not found in file '...'"
-                    std::string msg = "\xE8\xAD\xA6\xE5\x91\x8A: \xE4\xBB\xBB\xE5\x8A\xA1 '" + task.taskName + "' \xE6\x8C\x87\xE5\xAE\x9A\xE7\x9A\x84\xE5\xB7\xA5\xE4\xBD\x9C\xE8\xA1\xA8 '" + task.inputSheetName + "' \xE5\x9C\xA8\xE6\x96\x87\xE4\xBB\xB6 '" + inputFile + "' \xE4\xB8\xAD\xE6\x9C\xAA\xE6\x89\xBE\xE5\x88\xB0\xE3\x80\x82"; 
+
+                if (!sheetExistsInFile) {
+                    // "Error: Task '...' specified worksheet '...' not found in file '...'"
+                    std::string msg = "\xE9\x94\x99\xE8\xAF\xAF: \xE4\xBB\xBB\xE5\x8A\xA1 '" + task.taskName + "' \xE6\x8C\x87\xE5\xAE\x9A\xE7\x9A\x84\xE5\xB7\xA5\xE4\xBD\x9C\xE8\xA1\xA8 '" + task.inputSheetName + "' \xE5\x9C\xA8\xE6\x96\x87\xE4\xBB\xB6 '" + inputFile + "' \xE4\xB8\xAD\xE6\x9C\xAA\xE6\x89\xBE\xE5\x88\xB0\xE3\x80\x82"; // 错误...
                     if (logger_) logger_(msg);
+                    addError(msg);
                 }
             }
         }
