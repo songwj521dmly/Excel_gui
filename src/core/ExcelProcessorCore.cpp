@@ -1991,9 +1991,13 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
         // Get tasks (thread-safe internally)
         auto tasks = tasksToProcess; 
         
+        bool anyTaskEnabled = false;
+
         for (const auto& task : tasks) {
             if (!task.enabled || task.inputFilenamePattern.empty()) continue;
             
+            anyTaskEnabled = true;
+
             QString pattern = QString::fromStdString(task.inputFilenamePattern);
             QFileInfo info(pattern);
             QDir dir = info.isAbsolute() ? info.absoluteDir() : QDir::current();
@@ -2009,6 +2013,14 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
             filters << fileNamePattern;
             
             QFileInfoList list = dir.entryInfoList(filters, QDir::Files);
+            
+            if (list.empty()) {
+                // Log warning: No files found for this task pattern
+                std::string msg = "\xE8\xAD\xA6\xE5\x91\x8A: \xE4\xBB\xBB\xE5\x8A\xA1 '" + task.taskName + "' \xE7\x9A\x84\xE8\xBE\x93\xE5\x85\xA5\xE6\x96\x87\xE4\xBB\xB6\xE6\xA8\xA1\xE5\xBC\x8F '" + task.inputFilenamePattern + "' \xE6\x9C\xAA\xE5\x8C\xB9\xE9\x85\x8D\xE5\x88\xB0\xE4\xBB\xBB\xE4\xBD\x95\xE6\x96\x87\xE4\xBB\xB6\xE3\x80\x82"; // 警告: 任务 '...' 的输入文件模式 '...' 未匹配到任何文件。
+                if (logger_) logger_(msg);
+                addError(msg);
+            }
+
             for (const auto& fileInfo : list) {
                 uniqueFiles.insert(fileInfo.absoluteFilePath().toStdString());
             }
@@ -2016,6 +2028,14 @@ std::vector<ProcessingResult> ExcelProcessorCore::processTasksInternal(const std
         
         if (uniqueFiles.empty()) {
              // No files found to process
+             if (anyTaskEnabled) {
+                 std::string msg = "\xE9\x94\x99\xE8\xAF\xAF: \xE6\x9C\xAA\xE6\x89\xBE\xE5\x88\xB0\xE4\xBB\xBB\xE4\xBD\x95\xE9\x9C\x80\xE8\xA6\x81\xE5\xA4\x84\xE7\x90\x86\xE7\x9A\x84\xE6\x96\x87\xE4\xBB\xB6\xE3\x80\x82\xE8\xAF\xB7\xE6\xA3\x80\xE6\x9F\xA5\xE4\xBB\xBB\xE5\x8A\xA1\xE9\x85\x8D\xE7\xBD\xAE\xE7\x9A\x84\xE8\xBE\x93\xE5\x85\xA5\xE6\x96\x87\xE4\xBB\xB6\xE8\xB7\xAF\xE5\xBE\x84\xE3\x80\x82"; // 错误: 未找到任何需要处理的文件。请检查任务配置的输入文件路径。
+                 if (logger_) logger_(msg);
+                 addError(msg);
+             } else {
+                 std::string msg = "\xE6\x8F\x90\xE7\xA4\xBA: \xE6\xB2\xA1\xE6\x9C\x89\xE5\x90\xAF\xE7\x94\xA8\xE7\x9A\x84\xE4\xBB\xBB\xE5\x8A\xA1\xE3\x80\x82"; // 提示: 没有启用的任务。
+                 if (logger_) logger_(msg);
+             }
              return allResults;
         }
         
