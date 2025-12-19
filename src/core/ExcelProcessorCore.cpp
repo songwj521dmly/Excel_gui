@@ -1784,13 +1784,11 @@ void ExcelProcessorCore::updatePerformanceStats(double processingTime) {
 static std::vector<std::string> splitString(const std::string& str, const std::string& delimiter) {
     std::vector<std::string> tokens;
     size_t prev = 0, pos = 0;
-    do {
-        pos = str.find(delimiter, prev);
-        if (pos == std::string::npos) pos = str.length();
-        std::string token = str.substr(prev, pos - prev);
-        if (!token.empty()) tokens.push_back(token);
+    while ((pos = str.find(delimiter, prev)) != std::string::npos) {
+        tokens.push_back(str.substr(prev, pos - prev));
         prev = pos + delimiter.length();
-    } while (pos < str.length() && prev < str.length());
+    }
+    tokens.push_back(str.substr(prev));
     return tokens;
 }
 
