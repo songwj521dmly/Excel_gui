@@ -1201,7 +1201,7 @@ bool ExcelProcessorCore::saveConfiguration(const std::string& configFile) const 
     }
 
     // Write header
-    file << "ID,Name,Type,Conditions,TargetSheet,Transform,Enabled,Desc,Priority,OutputMode,OutputName\n";
+    file << "ID,Name,Type,Conditions,TargetSheet,Transform,Enabled,Desc,Priority,OutputMode,OutputName,RuleLogic\n";
 
     // Write rules
     for (const auto& rule : rules_) {
@@ -1237,7 +1237,8 @@ bool ExcelProcessorCore::saveConfiguration(const std::string& configFile) const 
              << "\"" << rule.description << "\","
              << rule.priority << ","
              << static_cast<int>(rule.outputMode) << ","
-             << "\"" << rule.outputName << "\"\n";
+            file << "\"" << rule.outputName << "\","
+             << static_cast<int>(rule.logic) << "\n";
     }
 
     file << "TASKS_SECTION\n";
@@ -1859,6 +1860,7 @@ Rule ExcelProcessorCore::parseRuleLine(const std::string& line) {
     if (tokens.size() >= 9) rule.priority = std::stoi(tokens[8]);
     if (tokens.size() >= 10) rule.outputMode = static_cast<OutputMode>(std::stoi(tokens[9]));
     if (tokens.size() >= 11) rule.outputName = tokens[10];
+    if (tokens.size() >= 12) rule.logic = static_cast<RuleLogic>(std::stoi(tokens[11]));
 
     // Parse excluded rules (REMOVED)
     /*

@@ -155,4 +155,9 @@
 - **原因分析**: `ExcelProcessorCore` 中的 CSV 解析辅助函数 `splitString` 在分割字符串时错误地忽略了空 Token。当规则条件的 `value` 字段为空（常见于仅依赖分隔符逻辑的规则）时，导致后续的 `splitSymbol` 和 `splitTarget` 字段在读取时发生错位，从而未能正确加载。
 - **修复方法**: 重写 `splitString` 函数，使用 `while` 循环和 `substr` 确保正确处理并保留空字符串 Token，保证 CSV 字段解析的位置准确性。
 
+### 5.21 修复：规则逻辑关系（AND/OR）配置保存失效
+- **问题描述**: 用户在修改规则的逻辑关系（例如从 AND 改为 OR）后，点击保存配置，文件中的数据未包含逻辑关系的变化。重新加载配置后，逻辑关系恢复为默认值（AND）。
+- **原因分析**: `ExcelProcessorCore` 在保存 (`saveConfiguration`) 和加载 (`parseRuleLine`) 规则配置时，完全遗漏了 `RuleLogic` 字段的处理，导致该设置仅在内存中生效，无法持久化。
+- **修复方法**: 修改配置文件（CSV）格式，在规则定义行的末尾增加 `RuleLogic` 字段。更新 `saveConfiguration` 方法将逻辑关系写入文件，并更新 `parseRuleLine` 方法从文件中读取该字段。保持了对旧版本配置文件的向后兼容性（若缺少该字段则默认为 AND）。
+
 
