@@ -41,11 +41,9 @@ private:
 
     const QString REGISTRY_KEY = "HKEY_CURRENT_USER\\Software\\ExcelCL";
     const QString EXPIRY_VALUE_NAME = "ExpiryDate";
+    const QString FIRST_RUN_VALUE_NAME = "FirstRunDate";
     
     // Key source from C# reference: "CadCad2024License!@#$%^&*()_+123"
     // Key (32 bytes) and IV (16 bytes) are derived from this.
     const std::string ENCRYPTION_KEY_SOURCE = "CadCad2024License!@#$%^&*()_+123";
-    
-    // Default expiry date: 2026-12-01 00:00:00
-    const QDateTime DEFAULT_EXPIRY = QDateTime(QDate(2026, 12, 1), QTime(0, 0));
 };

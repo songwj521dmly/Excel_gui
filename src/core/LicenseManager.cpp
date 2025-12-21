@@ -36,9 +36,29 @@ QDateTime LicenseManager::getExpiryDate() {
         }
     }
 
-    // Default or invalid -> Reset to default
-    saveExpiryDate(DEFAULT_EXPIRY);
-    return DEFAULT_EXPIRY;
+    // Expiry invalid or missing -> Check First Run Date
+    QString encryptedFirstRun = settings.value(FIRST_RUN_VALUE_NAME).toString();
+    QDateTime firstRun;
+    
+    if (!encryptedFirstRun.isEmpty()) {
+         QString decryptedFirstRun = decryptString(encryptedFirstRun);
+         firstRun = QDateTime::fromString(decryptedFirstRun, "yyyy-MM-dd HH:mm:ss");
+    }
+    
+    // If First Run is invalid (e.g. first time ever), set it to NOW
+    if (!firstRun.isValid()) {
+        firstRun = QDateTime::currentDateTime();
+        // Save First Run Date
+        settings.setValue(FIRST_RUN_VALUE_NAME, encryptString(firstRun.toString("yyyy-MM-dd HH:mm:ss")));
+    }
+    
+    // Default Trial Policy: 1 Year from First Run
+    QDateTime trialExpiry = firstRun.addYears(1);
+    
+    // Save this calculated expiry so we don't calculate it every time (and to allow manual extension later)
+    saveExpiryDate(trialExpiry);
+    
+    return trialExpiry;
 }
 
 void LicenseManager::saveExpiryDate(const QDateTime& date) {

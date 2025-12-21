@@ -1174,7 +1174,12 @@ bool ExcelProcessorCore::loadConfiguration(const std::string& configFile) {
                         task.useHeader = (parts[10] == "TRUE");
                     }
                     
-                    task.enabled = true; // Default to enabled
+                    if (parts.size() >= 12) {
+                        task.enabled = (parts[11] == "TRUE");
+                    } else {
+                        task.enabled = true; // Default to enabled
+                    }
+
                     tasks_.push_back(task);
                 }
             } else {
@@ -1225,9 +1230,11 @@ bool ExcelProcessorCore::saveConfiguration(const std::string& configFile) const 
                 }
             }, rule.conditions[i].value);
             
-            // Save Split Logic
+            // Save Split Logic, DataType, CaseSensitive
             condOss << ";;" << rule.conditions[i].splitSymbol << ";;" 
-                    << static_cast<int>(rule.conditions[i].splitTarget);
+                    << static_cast<int>(rule.conditions[i].splitTarget) << ";;"
+                    << static_cast<int>(rule.conditions[i].type) << ";;"
+                    << (rule.conditions[i].case_sensitive ? "1" : "0");
         }
         file << "\"" << condOss.str() << "\",";
 
@@ -1237,12 +1244,12 @@ bool ExcelProcessorCore::saveConfiguration(const std::string& configFile) const 
              << "\"" << rule.description << "\","
              << rule.priority << ","
              << static_cast<int>(rule.outputMode) << ","
-            file << "\"" << rule.outputName << "\","
+             << "\"" << rule.outputName << "\","
              << static_cast<int>(rule.logic) << "\n";
     }
 
     file << "TASKS_SECTION\n";
-    file << "ID,TaskName,OutputMode,OutputWorkbookName,IncludeRuleIds,ExcludeRuleIds,OverwriteSheet,InputFilenamePattern,InputSheetName,RuleLogic,UseHeader\n";
+    file << "ID,TaskName,OutputMode,OutputWorkbookName,IncludeRuleIds,ExcludeRuleIds,OverwriteSheet,InputFilenamePattern,InputSheetName,RuleLogic,UseHeader,Enabled\n";
     
     for (const auto& task : tasks_) {
         file << task.id << ","
@@ -1287,7 +1294,10 @@ bool ExcelProcessorCore::saveConfiguration(const std::string& configFile) const 
         file << static_cast<int>(task.ruleLogic) << ",";
         
         // Use Header
-        file << (task.useHeader ? "TRUE" : "FALSE") << "\n";
+        file << (task.useHeader ? "TRUE" : "FALSE") << ",";
+
+        // Enabled
+        file << (task.enabled ? "TRUE" : "FALSE") << "\n";
     }
 
     return true;
@@ -1846,6 +1856,26 @@ Rule ExcelProcessorCore::parseRuleLine(const std::string& line) {
                 if (parts.size() >= 5) {
                     condition.splitSymbol = parts[3];
                     condition.splitTarget = static_cast<SplitTarget>(std::stoi(parts[4]));
+                }
+                
+                // Parse DataType and CaseSensitive
+                if (parts.size() >= 7) {
+                    condition.type = static_cast<DataType>(std::stoi(parts[5]));
+                    condition.case_sensitive = (parts[6] == "1");
+                    
+                    // Restore correct variant type based on DataType
+                    try {
+                        if (condition.type == DataType::INTEGER) {
+                            if (!parts[2].empty()) condition.value = std::stoi(parts[2]);
+                        } else if (condition.type == DataType::DOUBLE) {
+                            if (!parts[2].empty()) condition.value = std::stod(parts[2]);
+                        } else if (condition.type == DataType::BOOLEAN) {
+                            condition.value = (parts[2] == "true" || parts[2] == "1");
+                        }
+                        // STRING and DATE stay as string for now
+                    } catch (...) {
+                        // Keep as string if conversion fails
+                    }
                 }
 
                 rule.conditions.push_back(condition);

@@ -478,6 +478,27 @@ QWidget* ExcelProcessorGUI::createAboutTab() {
     descLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(descLabel);
 
+    // User Guide Group
+    auto guideGroup = new QGroupBox(QString::fromUtf8("\xE7\xAE\x80\xE6\x98\x93\xE4\xBD\xBF\xE7\x94\xA8\xE8\xAF\xB4\xE6\x98\x8E")); // Simple User Guide
+    guideGroup->setStyleSheet("QGroupBox { font-weight: bold; border: 1px solid #cccccc; border-radius: 5px; margin-top: 20px; padding-top: 15px; } QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top center; padding: 0 5px; color: #333333; }");
+    auto guideLayout = new QVBoxLayout(guideGroup);
+
+    auto guideLabel = new QLabel(QString::fromUtf8(
+        "1. \xE9\xA6\x96\xE5\x85\x88\xE5\x9C\xA8 <b>\xE8\xA7\x84\xE5\x88\x99\xE9\x85\x8D\xE7\xBD\xAE</b> \xE7\x95\x8C\xE9\x9D\xA2\xE5\x88\x9B\xE5\xBB\xBA\xE8\xA7\x84\xE5\x88\x99\xE3\x80\x82<br>"
+        "2. \xE7\x84\xB6\xE5\x90\x8E\xE5\x9C\xA8 <b>\xE5\xA4\x9A\xE5\xB7\xA5\xE4\xBD\x9C\xE7\xB0\xBF\xE4\xBB\xBB\xE5\x8A\xA1</b> \xE7\x95\x8C\xE9\x9D\xA2\xE4\xBD\xBF\xE7\x94\xA8\xE8\xBF\x99\xE4\xBA\x9B\xE8\xA7\x84\xE5\x88\x99\xE3\x80\x82<br>"
+        "3. \xE5\x8F\xAF\xE4\xBB\xA5\xE4\xBF\x9D\xE5\xAD\x98\xE5\xA4\x9A\xE4\xB8\xAA\xE9\x85\x8D\xE7\xBD\xAE\xE6\x96\x87\xE4\xBB\xB6\xE4\xBB\xA5\xE5\xBA\x94\xE5\xAF\xB9\xE4\xB8\x8D\xE5\x90\x8C\xE7\x9A\x84\xE9\x9C\x80\xE6\xB1\x82\xE3\x80\x82"
+    ));
+    guideLabel->setStyleSheet("font-size: 14px; color: #333333; font-weight: normal;");
+    guideLabel->setAlignment(Qt::AlignCenter);
+    guideLayout->addWidget(guideLabel);
+
+    // Center the group box horizontally
+    auto hLayout = new QHBoxLayout();
+    hLayout->addStretch();
+    hLayout->addWidget(guideGroup);
+    hLayout->addStretch();
+    layout->addLayout(hLayout);
+
     layout->addStretch();
 
     // Developer Info
@@ -609,20 +630,17 @@ QGroupBox* ExcelProcessorGUI::createButtonGroup() {
     auto group = new QGroupBox(QString::fromUtf8("\xE6\x93\x8D\xE4\xBD\x9C")); // Operation
     auto layout = new QHBoxLayout(group);
 
-    auto previewBtn = new QPushButton(QString::fromUtf8("\xE9\xA2\x84\xE8\xA7\x88\xE6\x95\xB0\xE6\x8D\xAE")); // Preview Data
+    // Only "Start Processing" button remains, "Preview Data" removed as requested
     auto processBtn = new QPushButton(QString::fromUtf8("\xE5\xBC\x80\xE5\xA7\x8B\xE5\xA4\x84\xE7\x90\x86")); // Start Processing
 
-    previewBtn->setMinimumHeight(50);
     processBtn->setMinimumHeight(50);
-    previewBtn->setStyleSheet("font-size: 14px; font-weight: bold;");
-    processBtn->setStyleSheet("font-size: 14px; font-weight: bold; background-color: #4CAF50; color: white;");
+    // Adjusted style: slightly larger font since it's the only button now
+    processBtn->setStyleSheet("font-size: 16px; font-weight: bold; background-color: #4CAF50; color: white;");
 
     processButton_ = processBtn; // Save member variable
 
-    layout->addWidget(previewBtn);
     layout->addWidget(processBtn);
 
-    // connect(previewBtn, &QPushButton::clicked, this, &ExcelProcessorGUI::previewData);
     connect(processBtn, &QPushButton::clicked, this, &ExcelProcessorGUI::processFile);
 
     return group;
@@ -1341,8 +1359,32 @@ void ExcelProcessorGUI::updateTaskTree() {
             
             child->setText(1, rulesInfo);
             child->setTextAlignment(1, Qt::AlignCenter); // Center align
-            child->setText(2, task.enabled ? QString::fromUtf8("\xE6\x98\xAF") : QString::fromUtf8("\xE5\x90\xA6"));
-            child->setTextAlignment(2, Qt::AlignCenter); // Center align
+            
+            // Enable Checkbox (Column 2)
+            QWidget* checkWidget = new QWidget();
+            QHBoxLayout* checkLayout = new QHBoxLayout(checkWidget);
+            checkLayout->setContentsMargins(0, 0, 0, 0);
+            checkLayout->setAlignment(Qt::AlignCenter);
+            QCheckBox* checkBox = new QCheckBox();
+            checkBox->setChecked(task.enabled);
+            
+            // Connect signal to update task
+            connect(checkBox, &QCheckBox::stateChanged, [this, taskId = task.id](int state) {
+                auto t = processor_->getTask(taskId);
+                if (t.id != 0) {
+                   t.enabled = (state == Qt::Checked);
+                   processor_->updateTask(t);
+                   
+                   // Auto-save if config is loaded to persist the enabled state immediately
+                   if (!currentConfigFile_.isEmpty()) {
+                       processor_->saveConfiguration(currentConfigFile_.toStdString());
+                   }
+                }
+            });
+            
+            checkLayout->addWidget(checkBox);
+            taskTree_->setItemWidget(child, 2, checkWidget);
+
             child->setData(0, Qt::UserRole, task.id);
 
             // Add Preview Button

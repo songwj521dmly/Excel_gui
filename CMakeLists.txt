@@ -4,6 +4,10 @@ project(ExcelProcessor LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
@@ -112,6 +116,7 @@ target_link_libraries(license_keygen PRIVATE ExcelProcessorCore ${QT_LIB_PREFIX}
 if(WIN32)
     set_target_properties(excel_gui PROPERTIES WIN32_EXECUTABLE ON)
 endif()
+
 
 # Tests - DISABLED per user request
 # enable_testing()
